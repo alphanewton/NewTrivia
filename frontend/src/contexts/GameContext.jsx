@@ -1,17 +1,23 @@
-import { createContext, useContext, useReducer, useRef, useCallback } from 'react'
+import {
+  createContext,
+  useContext,
+  useReducer,
+  useRef,
+  useCallback,
+} from "react";
 
-const GameContext = createContext(null)
+const GameContext = createContext(null);
 
 const initialState = {
   connected: false,
   roomCode: null,
   isHost: false,
   hostControlled: false,
-  phase: 'connecting',
+  phase: "connecting",
   players: [],
   totalQuestions: 0,
   questionNum: 0,
-  questionText: '',
+  questionText: "",
   options: [],
   timeLimit: 20,
   hasAnswered: false,
@@ -30,29 +36,29 @@ const initialState = {
     total: 0,
     responses: [],
   },
-}
+};
 
 function reducer(state, action) {
   switch (action.type) {
-    case 'WELCOME':
+    case "WELCOME":
       return {
         ...state,
         connected: true,
-        phase: 'lobby',
+        phase: "lobby",
         roomCode: action.payload.room_code,
         isHost: action.payload.is_host,
         hostControlled: action.payload.host_controlled ?? false,
         players: action.payload.players,
         totalQuestions: action.payload.total_questions,
-      }
-    case 'PLAYER_JOINED':
-      return { ...state, players: action.payload.players }
-    case 'GAME_STARTING':
-      return { ...state, phase: 'starting' }
-    case 'QUESTION':
+      };
+    case "PLAYER_JOINED":
+      return { ...state, players: action.payload.players };
+    case "GAME_STARTING":
+      return { ...state, phase: "starting" };
+    case "QUESTION":
       return {
         ...state,
-        phase: 'question',
+        phase: "question",
         questionNum: action.payload.question_num,
         questionText: action.payload.question,
         options: action.payload.options,
@@ -65,14 +71,14 @@ function reducer(state, action) {
         explanation: null,
         // Snapshot current leaderboard as previousLeaderboard for rank reveal
         previousLeaderboard: state.leaderboard,
-      }
-    case 'ANSWER_RECEIVED': {
+      };
+    case "ANSWER_RECEIVED": {
       const response = {
         correct: action.payload.correct,
         timeMs: action.payload.timeMs,
         points: action.payload.points_earned,
-      }
-      const prev = state.personalStats
+      };
+      const prev = state.personalStats;
       return {
         ...state,
         hasAnswered: true,
@@ -84,113 +90,122 @@ function reducer(state, action) {
           total: prev.total + 1,
           responses: [...prev.responses, response],
         },
-      }
+      };
     }
-    case 'INTERMISSION':
+    case "INTERMISSION":
       return {
         ...state,
-        phase: 'intermission',
+        phase: "intermission",
         correctAnswerId: action.payload.correct_answer_id,
         explanation: action.payload.explanation,
         leaderboard: action.payload.leaderboard,
         isLastQuestion: action.payload.is_last_question,
-      }
-    case 'GAME_OVER':
+      };
+    case "GAME_OVER":
       return {
         ...state,
-        phase: 'finished',
+        phase: "finished",
         finalLeaderboard: action.payload.leaderboard,
-      }
-    case 'ERROR':
-      return { ...state, phase: 'error', error: action.payload.message }
+      };
+    case "ERROR":
+      return { ...state, phase: "error", error: action.payload.message };
     default:
-      return state
+      return state;
   }
 }
 
 export function GameProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, initialState)
-  const wsRef = useRef(null)
-  const questionStartTimeRef = useRef(null)
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const wsRef = useRef(null);
+  const questionStartTimeRef = useRef(null);
 
   const connect = useCallback((roomCode, name, userId) => {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams();
     if (userId) {
-      params.set('user_id', userId)
-      if (name) params.set('name', name)
+      params.set("user_id", userId);
+      if (name) params.set("name", name);
     } else if (name) {
-      params.set('name', name)
+      params.set("name", name);
     }
 
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${proto}//${window.location.host}/ws/game/${roomCode}?${params.toString()}`
-    const ws = new WebSocket(wsUrl)
-    wsRef.current = ws
+    const WS_BASE =
+      import.meta.env.MODE === "development" ? "" : import.meta.env.VITE_WS_URL;
+
+    const wsUrl = `${
+      WS_BASE ||
+      (window.location.protocol === "https:" ? "wss://" : "ws://") +
+        window.location.host
+    }/ws/game/${roomCode}?${params.toString()}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
     ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data)
+      const msg = JSON.parse(event.data);
       switch (msg.type) {
-        case 'welcome':
-          dispatch({ type: 'WELCOME', payload: msg })
-          break
-        case 'player_joined':
-          dispatch({ type: 'PLAYER_JOINED', payload: msg })
-          break
-        case 'game_starting':
-          dispatch({ type: 'GAME_STARTING', payload: msg })
-          break
-        case 'question':
-          questionStartTimeRef.current = Date.now()
-          dispatch({ type: 'QUESTION', payload: msg })
-          break
-        case 'answer_received': {
+        case "welcome":
+          dispatch({ type: "WELCOME", payload: msg });
+          break;
+        case "player_joined":
+          dispatch({ type: "PLAYER_JOINED", payload: msg });
+          break;
+        case "game_starting":
+          dispatch({ type: "GAME_STARTING", payload: msg });
+          break;
+        case "question":
+          questionStartTimeRef.current = Date.now();
+          dispatch({ type: "QUESTION", payload: msg });
+          break;
+        case "answer_received": {
           const timeMs = questionStartTimeRef.current
             ? Date.now() - questionStartTimeRef.current
-            : null
-          dispatch({ type: 'ANSWER_RECEIVED', payload: { ...msg, timeMs } })
-          break
+            : null;
+          dispatch({ type: "ANSWER_RECEIVED", payload: { ...msg, timeMs } });
+          break;
         }
-        case 'intermission':
-          dispatch({ type: 'INTERMISSION', payload: msg })
-          break
-        case 'game_over':
-          dispatch({ type: 'GAME_OVER', payload: msg })
-          break
-        case 'error':
-          dispatch({ type: 'ERROR', payload: msg })
-          break
+        case "intermission":
+          dispatch({ type: "INTERMISSION", payload: msg });
+          break;
+        case "game_over":
+          dispatch({ type: "GAME_OVER", payload: msg });
+          break;
+        case "error":
+          dispatch({ type: "ERROR", payload: msg });
+          break;
         default:
-          break
+          break;
       }
-    }
+    };
 
     ws.onerror = () => {
-      dispatch({ type: 'ERROR', payload: { message: 'Connection failed. Is the backend running?' } })
-    }
-  }, [])
+      dispatch({
+        type: "ERROR",
+        payload: { message: "Connection failed. Is the backend running?" },
+      });
+    };
+  }, []);
 
   const send = useCallback((message) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message))
+      wsRef.current.send(JSON.stringify(message));
     }
-  }, [])
+  }, []);
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
-      wsRef.current.close()
-      wsRef.current = null
+      wsRef.current.close();
+      wsRef.current = null;
     }
-  }, [])
+  }, []);
 
   return (
     <GameContext.Provider value={{ state, connect, send, disconnect }}>
       {children}
     </GameContext.Provider>
-  )
+  );
 }
 
 export function useGame() {
-  const ctx = useContext(GameContext)
-  if (!ctx) throw new Error('useGame must be used within GameProvider')
-  return ctx
+  const ctx = useContext(GameContext);
+  if (!ctx) throw new Error("useGame must be used within GameProvider");
+  return ctx;
 }
