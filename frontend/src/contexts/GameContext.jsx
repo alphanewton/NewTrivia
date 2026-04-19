@@ -29,6 +29,10 @@ const initialState = {
   leaderboard: [],
   previousLeaderboard: [],
   isLastQuestion: false,
+  intermissionTime: 5,
+  intermissionStartTime: null,
+  answeredCount: 0,
+  totalPlayers: 0,
   finalLeaderboard: [],
   error: null,
   personalStats: {
@@ -69,6 +73,7 @@ function reducer(state, action) {
         correctAnswerIdOnAnswer: null,
         correctAnswerId: null,
         explanation: null,
+        answeredCount: 0,
         // Snapshot current leaderboard as previousLeaderboard for rank reveal
         previousLeaderboard: state.leaderboard,
       };
@@ -100,6 +105,14 @@ function reducer(state, action) {
         explanation: action.payload.explanation,
         leaderboard: action.payload.leaderboard,
         isLastQuestion: action.payload.is_last_question,
+        intermissionTime: action.payload.intermission_time ?? state.intermissionTime,
+        intermissionStartTime: Date.now(),
+      };
+    case "ANSWER_PROGRESS":
+      return {
+        ...state,
+        answeredCount: action.payload.answered,
+        totalPlayers: action.payload.total,
       };
     case "GAME_OVER":
       return {
@@ -164,6 +177,9 @@ export function GameProvider({ children }) {
         }
         case "intermission":
           dispatch({ type: "INTERMISSION", payload: msg });
+          break;
+        case "answer_progress":
+          dispatch({ type: "ANSWER_PROGRESS", payload: msg });
           break;
         case "game_over":
           dispatch({ type: "GAME_OVER", payload: msg });

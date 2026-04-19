@@ -227,6 +227,17 @@ class GameManager:
                         "correct_answer_id": q["correct_answer_id"],
                     })
 
+                    # Notify host of answer progress
+                    non_host = [n for n, p in room.players.items() if not p.is_host]
+                    answered_count = sum(1 for n in non_host if n in room.current_answers)
+                    host_name = next((n for n, p in room.players.items() if p.is_host), None)
+                    if host_name:
+                        await room.send_to(host_name, {
+                            "type": "answer_progress",
+                            "answered": answered_count,
+                            "total": len(non_host),
+                        })
+
         elif msg_type == "advance_game" and sender.is_host:
             # Host manually advances from question OR intermission
             if room.state in ("question", "intermission"):
@@ -257,7 +268,8 @@ class GameManager:
                 await asyncio.sleep(0.3)
                 if room.state == "finished":
                     return
-                if room.players and all(n in room.current_answers for n in room.players):
+                non_host = [n for n, p in room.players.items() if not p.is_host]
+                if non_host and all(n in room.current_answers for n in non_host):
                     break
                 # Host can always skip remaining question time
                 if room.advance_event.is_set():
@@ -316,6 +328,7 @@ class GameManager:
             "explanation": q["explanation"],
             "leaderboard": room.get_leaderboard()[:5],
             "is_last_question": room.current_q_idx == len(room.questions) - 1,
+            "intermission_time": room.intermission_time,
         })
 
     async def _end_game(self, room: Room) -> List[Dict]:

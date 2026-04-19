@@ -86,6 +86,7 @@ export default function GameSettingsModal({ onClose }) {
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
                 Between Questions
               </p>
+              <p className="text-xs text-gray-600 mt-0.5">Rankings shown for this duration</p>
               <span className="text-2xl font-black text-purple-400">{settings.intermission_time}s</span>
             </div>
             <div className="flex gap-2">

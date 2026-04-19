@@ -34,19 +34,19 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          <SignedIn>
-            {/* History — text on sm+, icon-only on mobile */}
-            <Link
-              to="/history"
-              className="flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-800"
-              title="History"
-            >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="hidden sm:inline">History</span>
-            </Link>
+          {/* History — visible to all */}
+          <Link
+            to="/history"
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-gray-800"
+            title="History"
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="hidden sm:inline">History</span>
+          </Link>
 
+          <SignedIn>
             {/* Game settings gear */}
             <button
               onClick={() => setShowSettings(true)}

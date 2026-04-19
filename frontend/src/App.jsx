@@ -30,15 +30,7 @@ export default function App() {
               </>
             }
           />
-          <Route
-            path="/history"
-            element={
-              <>
-                <SignedIn><History /></SignedIn>
-                <SignedOut><Navigate to="/" replace /></SignedOut>
-              </>
-            }
-          />
+          <Route path="/history" element={<History />} />
           <Route path="/room/:roomCode" element={<Room />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

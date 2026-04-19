@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createAvatar } from '@dicebear/core'
 import { bottts } from '@dicebear/collection'
 
@@ -55,14 +55,48 @@ function RankChangeChip({ change }) {
   )
 }
 
-export default function RankRevealView({ leaderboard, previousLeaderboard, playerName, playerAvatarSeed }) {
+// Countdown timer showing seconds remaining before next question
+function CountdownBar({ totalSeconds, startTime }) {
+  const [remaining, setRemaining] = useState(totalSeconds)
+
+  useEffect(() => {
+    if (!totalSeconds || !startTime) return
+    const update = () => {
+      const elapsed = (Date.now() - startTime) / 1000
+      setRemaining(Math.max(0, totalSeconds - elapsed))
+    }
+    update()
+    const id = setInterval(update, 100)
+    return () => clearInterval(id)
+  }, [totalSeconds, startTime])
+
+  const pct = totalSeconds > 0 ? remaining / totalSeconds : 0
+
+  return (
+    <div className="w-full mt-6 animate-fade-in">
+      <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+        <span className="uppercase tracking-widest font-bold">Next question in</span>
+        <span className="font-black text-gray-400">{Math.ceil(remaining)}s</span>
+      </div>
+      <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all"
+          style={{ width: `${pct * 100}%`, transition: 'width 0.1s linear' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+export default function RankRevealView({ leaderboard, previousLeaderboard, playerName, playerAvatarSeed, lastPoints, lastCorrect, intermissionTime, intermissionStartTime }) {
   const [introComplete, setIntroComplete] = useState(false)
   const [revealedCount, setRevealedCount] = useState(0)
   const [showOvertake, setShowOvertake] = useState(false)
   const [firstPlaceFlash, setFirstPlaceFlash] = useState(false)
 
   const total = leaderboard.length
-  const revealOrder = [...leaderboard].reverse() // reveal last → first
+  // Reveal top-to-bottom: first place shown first
+  const revealOrder = leaderboard
 
   const prevLeader = previousLeaderboard?.[0]?.name
   const newLeader = leaderboard[0]?.name
@@ -88,28 +122,27 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
 
   // Brief intro pause before cards start appearing
   useEffect(() => {
-    const t = setTimeout(() => setIntroComplete(true), 1200)
+    const t = setTimeout(() => setIntroComplete(true), 400)
     return () => clearTimeout(t)
   }, [])
 
-  // Staggered reveal: one entry every 900ms; extra pause before #1
+  // Staggered reveal: first place gets extra pause at the top
   useEffect(() => {
     if (!introComplete || revealedCount >= total) return
     const nextEntry = revealOrder[revealedCount]
     const isFirstPlace = nextEntry?.rank === 1
-    const delay = isFirstPlace ? 1400 : 900
+    const delay = isFirstPlace ? 1200 : 700
     const t = setTimeout(() => setRevealedCount(c => c + 1), delay)
     return () => clearTimeout(t)
   }, [revealedCount, total, introComplete, revealOrder])
 
-  // Gold flash on first-place reveal
+  // Gold flash on first-place reveal (index 0 = first place)
   useEffect(() => {
-    const firstPlaceRevealIdx = revealOrder.findIndex(e => e.rank === 1)
-    if (revealedCount === firstPlaceRevealIdx + 1) {
+    if (revealedCount === 1) {
       const t = setTimeout(() => setFirstPlaceFlash(true), 100)
       return () => clearTimeout(t)
     }
-  }, [revealedCount, revealOrder])
+  }, [revealedCount])
 
   // Show overtake banner after last entry reveals
   useEffect(() => {
@@ -118,6 +151,8 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
       return () => clearTimeout(t)
     }
   }, [revealedCount, total, leaderChanged])
+
+  const myEntry = playerName ? leaderboard.find(e => e.name === playerName) : null
 
   return (
     <div className="relative min-h-[calc(100vh-64px)] flex flex-col items-center justify-center px-4 py-8 overflow-hidden">
@@ -151,7 +186,7 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
       )}
 
       {/* Header */}
-      <div className="text-center mb-8 animate-pop">
+      <div className="text-center mb-6 animate-pop">
         <p className="text-xs uppercase tracking-[0.3em] text-gray-500 mb-1">Round Results</p>
         <h2 className="text-4xl sm:text-5xl font-black bg-gradient-to-r from-yellow-300 via-pink-400 to-purple-400 bg-clip-text text-transparent">
           RANKINGS
@@ -161,15 +196,35 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
         )}
       </div>
 
+      {/* Your round result — shown after player's card revealed */}
+      {myEntry && revealedCount > leaderboard.indexOf(myEntry) && (
+        <div className={`w-full max-w-md mb-4 px-4 py-3 rounded-2xl flex items-center justify-between animate-pop ${
+          lastCorrect
+            ? 'bg-green-900/25 border border-green-700/40'
+            : 'bg-gray-800/60 border border-white/5'
+        }`}>
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">Your result</p>
+            <p className={`font-black text-base ${lastCorrect ? 'text-green-400' : 'text-red-400'}`}>
+              {lastCorrect ? `+${lastPoints?.toLocaleString() ?? 0} pts` : 'No points'}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-400 uppercase tracking-widest font-bold">Your rank</p>
+            <p className="font-black text-white text-base">#{myEntry.rank}</p>
+          </div>
+        </div>
+      )}
+
       {/* NEW LEADER banner */}
       {showOvertake && (
-        <div className="mb-6 px-6 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-2xl shadow-xl shadow-yellow-500/30 animate-confetti text-center">
+        <div className="mb-5 px-6 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 rounded-2xl shadow-xl shadow-yellow-500/30 animate-confetti text-center">
           <p className="text-yellow-900 font-black text-lg">👑 NEW LEADER! 👑</p>
           <p className="text-yellow-800 font-bold text-sm">{newLeader} takes the top spot!</p>
         </div>
       )}
 
-      {/* Cards revealed bottom → top */}
+      {/* Cards revealed top → bottom (first place first) */}
       <div className="w-full max-w-md space-y-3">
         {revealOrder.map((entry, revealIdx) => {
           const visible = revealIdx < revealedCount
@@ -178,6 +233,7 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
           const rankChange = rankChanges[entry.name]
           const oldScore = prevScores[entry.name] ?? entry.score
           const seed = isMe && playerAvatarSeed ? playerAvatarSeed : entry.name
+          const pointsThisRound = isMe && lastPoints != null ? lastPoints : (entry.score - (prevScores[entry.name] ?? entry.score))
 
           if (!visible) return (
             <div
@@ -193,7 +249,7 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
                 isFirstPlace
                   ? 'bg-gradient-to-r from-yellow-900/50 to-amber-900/40 border-yellow-500/40 shadow-xl shadow-yellow-500/15 scale-[1.02]'
                   : isMe
-                  ? 'bg-indigo-900/30 border-indigo-700/40 shadow-md shadow-indigo-500/10'
+                  ? 'bg-indigo-900/30 border-indigo-500/50 shadow-lg shadow-indigo-500/15 ring-1 ring-indigo-500/30'
                   : 'bg-gray-900/70 border-white/5'
               }`}
               style={{ animationDelay: '0s' }}
@@ -205,7 +261,8 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
 
               {/* Avatar */}
               <div className={`w-11 h-11 rounded-xl overflow-hidden flex-shrink-0 ${
-                isFirstPlace ? 'ring-2 ring-yellow-400/60 shadow-lg shadow-yellow-500/20' : 'bg-gray-800'
+                isFirstPlace ? 'ring-2 ring-yellow-400/60 shadow-lg shadow-yellow-500/20' :
+                isMe ? 'ring-2 ring-indigo-400/60' : 'bg-gray-800'
               }`}>
                 <img
                   src={getAvatarUri(seed)}
@@ -216,10 +273,10 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
                 />
               </div>
 
-              {/* Name */}
+              {/* Name + you badge */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`font-black truncate text-base ${isFirstPlace ? 'text-yellow-300' : 'text-white'}`}>
+                  <span className={`font-black truncate text-base ${isFirstPlace ? 'text-yellow-300' : isMe ? 'text-indigo-300' : 'text-white'}`}>
                     {entry.name}
                   </span>
                   {isMe && (
@@ -231,6 +288,10 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
                     <span className="text-base">👑</span>
                   )}
                 </div>
+                {/* Points earned this round for current player */}
+                {isMe && pointsThisRound > 0 && (
+                  <p className="text-xs text-green-400 font-bold mt-0.5">+{pointsThisRound.toLocaleString()} this round</p>
+                )}
               </div>
 
               {/* Rank change */}
@@ -256,11 +317,11 @@ export default function RankRevealView({ leaderboard, previousLeaderboard, playe
         </div>
       )}
 
-      {/* Status line after full reveal */}
-      {revealedCount >= total && (
-        <p className="mt-8 text-gray-600 text-xs animate-pulse">
-          {leaderboard[0]?.name && `${leaderboard[0].name} leads with ${leaderboard[0].score.toLocaleString()} pts`}
-        </p>
+      {/* Countdown to next question (auto pacing only) */}
+      {intermissionTime && intermissionStartTime && revealedCount >= total && (
+        <div className="w-full max-w-md">
+          <CountdownBar totalSeconds={intermissionTime} startTime={intermissionStartTime} />
+        </div>
       )}
     </div>
   )

@@ -78,6 +78,7 @@ export default function GameView() {
     hasAnswered, lastCorrect, lastPoints,
     correctAnswerId, correctAnswerIdOnAnswer,
     explanation, leaderboard, previousLeaderboard, isLastQuestion,
+    intermissionTime, intermissionStartTime, answeredCount, totalPlayers,
   } = state
 
   // Works for both players (sessionStorage) and hosts (localStorage)
@@ -101,7 +102,7 @@ export default function GameView() {
       if (!hostControlled) {
         subPhaseTimerRef.current = setTimeout(() => {
           setIntermissionSubPhase('ranks')
-        }, 2800)
+        }, 1000)
       }
     }
     return () => clearTimeout(subPhaseTimerRef.current)
@@ -171,6 +172,10 @@ export default function GameView() {
           previousLeaderboard={previousLeaderboard}
           playerName={playerName}
           playerAvatarSeed={playerAvatarSeed}
+          lastPoints={lastPoints}
+          lastCorrect={lastCorrect}
+          intermissionTime={hostControlled ? null : intermissionTime}
+          intermissionStartTime={intermissionStartTime}
         />
         {/* Host advance button — only when host controls pacing */}
         {isHost && hostControlled && (
@@ -227,35 +232,44 @@ export default function GameView() {
       </div>
 
       {/* Answer feedback banner */}
-      {hasAnswered && phase === 'question' && (
-        <div className="mb-4 rounded-2xl overflow-hidden animate-pop">
-          {lastCorrect ? (
-            <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-5 py-4 flex items-center gap-3">
-              <span className="text-3xl animate-confetti">✅</span>
-              <div>
-                <p className="font-black text-lg">Correct!</p>
-                <p className="text-green-100 text-sm">+{lastPoints.toLocaleString()} points</p>
+      {hasAnswered && phase === 'question' && (() => {
+        const myEntry = playerName ? leaderboard.find(e => e.name === playerName) : null
+        return (
+          <div className="mb-4 rounded-2xl overflow-hidden animate-pop">
+            {lastCorrect ? (
+              <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-5 py-4 flex items-center gap-3">
+                <span className="text-3xl animate-confetti">✅</span>
+                <div>
+                  <p className="font-black text-lg">Correct!</p>
+                  <p className="text-green-100 text-sm">+{lastPoints.toLocaleString()} points</p>
+                </div>
+                <div className="ml-auto text-right">
+                  <p className="text-green-100 text-xs">Speed</p>
+                  <p className="font-black">{lastPoints >= 900 ? '🔥 Fast!' : lastPoints >= 700 ? '⚡ Good' : '👍 OK'}</p>
+                </div>
               </div>
-              <div className="ml-auto text-right">
-                <p className="text-green-100 text-xs">Speed</p>
-                <p className="font-black">{lastPoints >= 900 ? '🔥 Fast!' : lastPoints >= 700 ? '⚡ Good' : '👍 OK'}</p>
+            ) : (
+              <div className="bg-gradient-to-r from-red-500 to-rose-600 text-white px-5 py-4 flex items-center gap-3">
+                <span className="text-3xl animate-wrong-shake">❌</span>
+                <div>
+                  <p className="font-black text-lg">Wrong!</p>
+                  <p className="text-red-100 text-sm">
+                    {correctAnswerIdOnAnswer !== null
+                      ? `Correct: ${OPTION_CONFIGS[correctAnswerIdOnAnswer]?.letter}`
+                      : 'Better luck next time'}
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="bg-gradient-to-r from-red-500 to-rose-600 text-white px-5 py-4 flex items-center gap-3">
-              <span className="text-3xl animate-wrong-shake">❌</span>
-              <div>
-                <p className="font-black text-lg">Wrong!</p>
-                <p className="text-red-100 text-sm">
-                  {correctAnswerIdOnAnswer !== null
-                    ? `Correct: ${OPTION_CONFIGS[correctAnswerIdOnAnswer]?.letter}`
-                    : 'Better luck next time'}
-                </p>
+            )}
+            {myEntry && (
+              <div className="bg-gray-900/90 px-5 py-2.5 flex items-center justify-between text-sm border-t border-white/5">
+                <span className="text-gray-400">Your ranking</span>
+                <span className="font-black text-white">#{myEntry.rank} · {myEntry.score.toLocaleString()} pts</span>
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )
+      })()}
 
       {/* Answer options */}
       <div className="grid grid-cols-1 gap-3 mb-4">
@@ -289,6 +303,20 @@ export default function GameView() {
               {hostControlled ? 'Waiting for host...' : 'Standings coming up...'}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Host: answer progress indicator (manual pacing) */}
+      {isHost && phase === 'question' && totalPlayers > 0 && (
+        <div className={`mb-3 px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-bold transition-all ${
+          answeredCount === totalPlayers
+            ? 'bg-green-900/30 border border-green-700/40 text-green-400'
+            : 'bg-gray-800/60 border border-white/5 text-gray-300'
+        }`}>
+          <span>{answeredCount === totalPlayers ? '✓ All players answered!' : `Waiting for answers...`}</span>
+          <span className={`text-base font-black ${answeredCount === totalPlayers ? 'text-green-400' : 'text-white'}`}>
+            {answeredCount} / {totalPlayers}
+          </span>
         </div>
       )}
 
